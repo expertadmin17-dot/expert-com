@@ -75,6 +75,14 @@
     display: inline-block; cursor: pointer; user-select: none;
   }
   .today-date { text-align: center; font-size: 13px; color: var(--muted); text-transform: capitalize; margin-bottom: 1rem; }
+  .countries-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 1.2rem; }
+  .country-btn {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 0.9rem 0.7rem; text-align: center; cursor: pointer; user-select: none;
+    font-size: 13px; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .country-btn .flag { font-size: 22px; }
+  .country-btn .count-badge { font-size: 10px; color: var(--accent); font-weight: 700; }
 
   .date-group { margin-bottom: 10px; }
   .date-header {
@@ -207,6 +215,8 @@
   <div id="menu-dropdown">
     <button id="open-promo">🎁 Promotion</button>
     <button id="open-vip">👑 VIP</button>
+    <button id="open-history-vip">📜 Historique VIP</button>
+    <button id="open-history-free">📜 Historique Gratuit</button>
     <button id="open-settings">⚙️ Paramètres</button>
     <button id="open-privacy">🔒 Confidentialité</button>
     <button id="open-about">ℹ️ À propos</button>
@@ -221,7 +231,8 @@
   <!-- HOME (free) -->
   <div id="home-view" class="view active">
     <div class="today-date" id="today-date-label"></div>
-    <div id="home-list"></div>
+    <p class="section-label" style="margin-top:0;">Choisis un pays</p>
+    <div id="countries-grid" class="countries-grid"></div>
     <div class="telegram-banner">
       <p>📣 Rejoins notre canal Telegram pour ne rien manquer !</p>
       <a href="https://t.me/+gD6HaxtV5DZhNTk0" target="_blank" rel="noopener">Rejoindre le canal</a>
@@ -230,6 +241,28 @@
       <p>🔥 Profite du code <strong>ADEOLA17</strong> pour jusqu'à 300% de bonus chez nos bookmakers partenaires !</p>
       <button id="home-promo-copy" class="promo-copy-btn">Copier le code</button>
     </div>
+  </div>
+
+  <!-- COUNTRY DETAIL (free, today only) -->
+  <div id="country-detail-view" class="view">
+    <div class="back-link" id="back-from-country">← Retour aux pays</div>
+    <div class="today-date" id="country-today-label"></div>
+    <p class="section-label" style="margin-top:0;" id="country-detail-title"></p>
+    <div id="country-detail-list"></div>
+  </div>
+
+  <!-- HISTORIQUE GRATUIT (public) -->
+  <div id="history-free-view" class="view">
+    <div class="back-link" data-back>← Retour</div>
+    <p class="section-label" style="margin-top:0;">Historique — Pronostics gratuits</p>
+    <div id="history-free-list"></div>
+  </div>
+
+  <!-- HISTORIQUE VIP (public, non verrouillé) -->
+  <div id="history-vip-view" class="view">
+    <div class="back-link" data-back>← Retour</div>
+    <p class="section-label" style="margin-top:0;">Historique — Pronostics VIP</p>
+    <div id="history-vip-list"></div>
   </div>
 
   <!-- VIP -->
@@ -316,9 +349,10 @@
         <input id="team2" placeholder="Équipe 2" />
       </div>
       <div class="field-group">
-        <input id="competition" placeholder="Compétition" />
+        <select id="country"></select>
         <input id="matchTime" placeholder="Heure (ex: 20:00)" />
       </div>
+      <input id="competition" placeholder="Compétition (ex: Premier League)" style="margin-bottom:12px;" />
       <select id="audience" style="margin-bottom:12px;">
         <option value="free">Gratuit (accès libre)</option>
         <option value="vip">VIP (accès verrouillé)</option>
@@ -368,8 +402,29 @@ const db = firebase.firestore();
 
 const markets = [
   { key: 'tirs', label: 'Tirs' },
-  { key: 'tacles', label: 'Tacles' },
   { key: 'cadres', label: 'Tirs cadrés' }
+];
+
+const COUNTRIES = [
+  { key: 'angleterre', label: 'Angleterre', flag: '🏴' },
+  { key: 'allemagne', label: 'Allemagne', flag: '🇩🇪' },
+  { key: 'espagne', label: 'Espagne', flag: '🇪🇸' },
+  { key: 'italie', label: 'Italie', flag: '🇮🇹' },
+  { key: 'france', label: 'France', flag: '🇫🇷' },
+  { key: 'pays-bas', label: 'Pays-Bas', flag: '🇳🇱' },
+  { key: 'portugal', label: 'Portugal', flag: '🇵🇹' },
+  { key: 'turquie', label: 'Turquie', flag: '🇹🇷' },
+  { key: 'belgique', label: 'Belgique', flag: '🇧🇪' },
+  { key: 'arabie-saoudite', label: 'Arabie Saoudite', flag: '🇸🇦' },
+  { key: 'croatie', label: 'Croatie', flag: '🇭🇷' },
+  { key: 'danemark', label: 'Danemark', flag: '🇩🇰' },
+  { key: 'ecosse', label: 'Écosse', flag: '🏴' },
+  { key: 'grece', label: 'Grèce', flag: '🇬🇷' },
+  { key: 'norvege', label: 'Norvège', flag: '🇳🇴' },
+  { key: 'pologne', label: 'Pologne', flag: '🇵🇱' },
+  { key: 'republique-tcheque', label: 'République tchèque', flag: '🇨🇿' },
+  { key: 'roumanie', label: 'Roumanie', flag: '🇷🇴' },
+  { key: 'suede', label: 'Suède', flag: '🇸🇪' }
 ];
 
 const JOURS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
@@ -402,6 +457,8 @@ document.getElementById('menu-btn').addEventListener('click', (e) => {
 document.addEventListener('click', () => { document.getElementById('menu-dropdown').style.display = 'none'; });
 
 document.getElementById('open-vip').addEventListener('click', () => showView('vip-view'));
+document.getElementById('open-history-free').addEventListener('click', () => showView('history-free-view'));
+document.getElementById('open-history-vip').addEventListener('click', () => showView('history-vip-view'));
 document.getElementById('open-about').addEventListener('click', () => showView('about-view'));
 document.getElementById('open-privacy').addEventListener('click', () => showView('privacy-view'));
 document.getElementById('open-settings').addEventListener('click', () => showView('settings-view'));
@@ -422,12 +479,17 @@ document.getElementById('title-tap').addEventListener('click', () => {
 });
 
 /* ---------- Match card rendering ---------- */
+function countryLabel(key) {
+  const c = COUNTRIES.find(c => c.key === key);
+  return c ? `${c.flag} ${c.label}` : '';
+}
+
 function renderMatchCard(match) {
   const v = match.validated || {};
   return `
     <div class="match-card">
       <div class="match-title">${match.team1} — ${match.team2}</div>
-      <div class="match-comp">${match.competition || 'Compétition non précisée'}${match.matchTime ? ' · ' + match.matchTime : ''}</div>
+      <div class="match-comp">${match.competition || 'Compétition non précisée'}${match.matchTime ? ' · ' + match.matchTime : ''}${match.country ? ' · ' + countryLabel(match.country) : ''}</div>
       ${markets.map(m => {
         const d = match[m.key] || {};
         const vm = v[m.key] || {};
@@ -448,6 +510,47 @@ function renderMatchCard(match) {
     </div>
   `;
 }
+
+/* ---------- Countries grid & detail ---------- */
+let currentFreeToday = [];
+let selectedCountry = null;
+
+function renderCountriesGrid(freeTodayDocs) {
+  const el = document.getElementById('countries-grid');
+  el.innerHTML = COUNTRIES.map(c => {
+    const count = freeTodayDocs.filter(m => m.country === c.key).length;
+    return `
+      <div class="country-btn" data-country="${c.key}">
+        <span class="flag">${c.flag}</span>
+        <span>${c.label}</span>
+        ${count > 0 ? `<span class="count-badge">${count} match${count > 1 ? 's' : ''}</span>` : ''}
+      </div>`;
+  }).join('');
+  el.querySelectorAll('[data-country]').forEach(btn => {
+    btn.addEventListener('click', () => openCountryDetail(btn.getAttribute('data-country')));
+  });
+}
+
+function openCountryDetail(countryKey) {
+  selectedCountry = countryKey;
+  const c = COUNTRIES.find(c => c.key === countryKey);
+  document.getElementById('country-detail-title').textContent = c ? `${c.flag} ${c.label}` : '';
+  document.getElementById('country-today-label').textContent = formatDateLong(new Date());
+  renderCountryDetail();
+  showView('country-detail-view');
+}
+
+function renderCountryDetail() {
+  const el = document.getElementById('country-detail-list');
+  const docs = currentFreeToday.filter(m => m.country === selectedCountry);
+  if (docs.length === 0) {
+    el.innerHTML = '<div class="empty">Aucun pronostic disponible aujourd\'hui pour ce pays.</div>';
+    return;
+  }
+  el.innerHTML = docs.map(renderMatchCard).join('');
+}
+
+document.getElementById('back-from-country').addEventListener('click', () => showView('home-view'));
 
 /* Groups matches by date and renders an accordion; today's group open by default */
 function renderDateAccordion(containerEl, docs, emptyMsg) {
@@ -561,11 +664,24 @@ document.getElementById('today-date-label').textContent = formatDateLong(new Dat
 db.collection('matches').orderBy('createdAt', 'desc').onSnapshot(
   (snapshot) => {
     const allDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    const todayKey = dateKeyOf(new Date());
+    const isToday = m => (m.createdAt && m.createdAt.toDate) && dateKeyOf(m.createdAt.toDate()) === todayKey;
+
     const freeDocs = allDocs.filter(m => (m.audience || 'free') === 'free');
     const vipDocs = allDocs.filter(m => m.audience === 'vip');
 
-    renderDateAccordion(document.getElementById('home-list'), freeDocs, 'Aucun pronostic publié pour l\'instant.');
-    renderDateAccordion(document.getElementById('vip-list'), vipDocs, 'Aucun pronostic VIP pour l\'instant.');
+    currentFreeToday = freeDocs.filter(isToday);
+    const freeHistory = freeDocs.filter(m => !isToday(m));
+    const vipToday = vipDocs.filter(isToday);
+    const vipHistory = vipDocs.filter(m => !isToday(m));
+
+    renderCountriesGrid(currentFreeToday);
+    if (document.getElementById('country-detail-view').classList.contains('active')) {
+      renderCountryDetail();
+    }
+    renderDateAccordion(document.getElementById('history-free-list'), freeHistory, 'Aucun ancien pronostic gratuit pour l\'instant.');
+    renderDateAccordion(document.getElementById('history-vip-list'), vipHistory, 'Aucun ancien pronostic VIP pour l\'instant.');
+    renderDateAccordion(document.getElementById('vip-list'), vipToday, 'Aucun pronostic VIP pour l\'instant.');
     renderAdminList(allDocs);
     renderStats(allDocs);
 
@@ -596,6 +712,8 @@ function buildMarketsForm() {
 }
 buildMarketsForm();
 
+document.getElementById('country').innerHTML = COUNTRIES.map(c => `<option value="${c.key}">${c.flag} ${c.label}</option>`).join('');
+
 document.getElementById('publish-btn').addEventListener('click', () => {
   const errEl = document.getElementById('form-error');
   const team1 = document.getElementById('team1').value.trim();
@@ -603,6 +721,7 @@ document.getElementById('publish-btn').addEventListener('click', () => {
   const competition = document.getElementById('competition').value.trim();
   const matchTime = document.getElementById('matchTime').value.trim();
   const audience = document.getElementById('audience').value;
+  const country = document.getElementById('country').value;
 
   if (!team1 || !team2) {
     errEl.textContent = "Renseigne les deux noms d'équipe.";
@@ -622,9 +741,12 @@ document.getElementById('publish-btn').addEventListener('click', () => {
     };
   }
 
+  const validatedDefault = {};
+  markets.forEach(m => { validatedDefault[m.key] = {t1:false,t2:false,tot:false}; });
+
   db.collection('matches').add({
-    team1, team2, competition, matchTime, audience,
-    validated: { tirs: {t1:false,t2:false,tot:false}, tacles: {t1:false,t2:false,tot:false}, cadres: {t1:false,t2:false,tot:false} },
+    team1, team2, competition, matchTime, audience, country,
+    validated: validatedDefault,
     ...marketData,
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   }).then(() => {
