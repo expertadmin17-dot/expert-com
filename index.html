@@ -76,6 +76,24 @@
   }
   .today-date { text-align: center; font-size: 13px; color: var(--muted); text-transform: capitalize; margin-bottom: 1rem; }
   .countries-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 1.2rem; }
+  .combo-banner {
+    display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(135deg, #7a1f1f, #4a1414);
+    border: 1px solid #a83a3a; border-radius: 10px;
+    padding: 0.9rem 1.1rem; margin-bottom: 1.2rem; cursor: pointer; user-select: none;
+  }
+  .combo-banner .combo-icon { font-size: 20px; }
+  .combo-banner .combo-text { font-size: 14px; font-weight: 700; flex: 1; }
+  .combo-banner .combo-arrow { font-size: 16px; color: var(--muted); }
+  .combo-warning {
+    background: rgba(217,83,79,0.12); border: 1px solid var(--danger); border-radius: 10px;
+    padding: 0.9rem 1.1rem; font-size: 13px; color: var(--text); margin-bottom: 1rem; line-height: 1.5;
+  }
+  .combo-item {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 0.9rem 1.1rem; margin-bottom: 8px; font-size: 14px; display: flex; align-items: center; gap: 8px;
+  }
+  .combo-item .combo-fire { flex-shrink: 0; }
   .country-btn {
     background: var(--card); border: 1px solid var(--border); border-radius: 10px;
     padding: 0.9rem 0.7rem; text-align: center; cursor: pointer; user-select: none;
@@ -231,6 +249,11 @@
   <!-- HOME (free) -->
   <div id="home-view" class="view active">
     <div class="today-date" id="today-date-label"></div>
+    <div class="combo-banner" id="open-combo">
+      <span class="combo-icon">🔥</span>
+      <span class="combo-text">Combo Spécial du jour</span>
+      <span class="combo-arrow">→</span>
+    </div>
     <p class="section-label" style="margin-top:0;">Choisis un pays</p>
     <div id="countries-grid" class="countries-grid"></div>
     <div class="telegram-banner">
@@ -241,6 +264,14 @@
       <p>🔥 Profite du code <strong>ADEOLA17</strong> pour jusqu'à 300% de bonus chez nos bookmakers partenaires !</p>
       <button id="home-promo-copy" class="promo-copy-btn">Copier le code</button>
     </div>
+  </div>
+
+  <!-- COMBO SPÉCIAL -->
+  <div id="combo-view" class="view">
+    <div class="back-link" data-back>← Retour</div>
+    <div class="combo-warning">⚠️ Les combos sont des paris à risques. Veuillez en choisir deux, trois ou plus, selon votre choix.</div>
+    <p class="section-label" style="margin-top:0;">Options risquées du jour</p>
+    <div id="combo-list"></div>
   </div>
 
   <!-- COUNTRY DETAIL (free, today only) -->
@@ -365,6 +396,14 @@
     </div>
 
     <div class="admin-card">
+      <h2>Combo Spécial du jour</h2>
+      <input id="combo-input" placeholder="Ex: Real Madrid — plus de 12 tirs cadrés" style="margin-bottom:10px;" />
+      <button id="combo-add-btn">Ajouter au combo</button>
+      <div class="section-label" style="margin-top:1rem;">Options ajoutées aujourd'hui</div>
+      <div id="admin-combo-list"></div>
+    </div>
+
+    <div class="admin-card">
       <h2>Ajouter un match</h2>
       <div class="field-group">
         <input id="team1" placeholder="Équipe 1" />
@@ -479,6 +518,7 @@ document.getElementById('menu-btn').addEventListener('click', (e) => {
 document.addEventListener('click', () => { document.getElementById('menu-dropdown').style.display = 'none'; });
 
 document.getElementById('open-vip').addEventListener('click', () => showView('vip-view'));
+document.getElementById('open-combo').addEventListener('click', () => showView('combo-view'));
 document.getElementById('open-history-free').addEventListener('click', () => showView('history-free-view'));
 document.getElementById('open-history-vip').addEventListener('click', () => showView('history-vip-view'));
 document.getElementById('open-about').addEventListener('click', () => showView('about-view'));
@@ -785,6 +825,46 @@ db.collection('visits').onSnapshot(snapshot => {
     <div class="stat-box"><div class="num">${visitsToday}</div><div class="lbl">Visites aujourd'hui</div></div>
     <div class="stat-box" style="grid-column: span 2;"><div class="num">${formatDuration(avgSeconds)}</div><div class="lbl">Durée moyenne passée sur le site</div></div>
   `;
+}, console.error);
+
+/* ---------- Combo Spécial du jour ---------- */
+document.getElementById('combo-add-btn').addEventListener('click', () => {
+  const input = document.getElementById('combo-input');
+  const text = input.value.trim();
+  if (!text) return;
+  db.collection('combos').add({
+    text,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(() => { input.value = ''; }).catch(console.error);
+});
+
+db.collection('combos').orderBy('createdAt', 'desc').onSnapshot(snapshot => {
+  const allCombos = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  const todayKey = dateKeyOf(new Date());
+  const todayCombos = allCombos.filter(c => (c.createdAt && c.createdAt.toDate) && dateKeyOf(c.createdAt.toDate()) === todayKey);
+
+  const publicEl = document.getElementById('combo-list');
+  if (publicEl) {
+    publicEl.innerHTML = todayCombos.length === 0
+      ? '<div class="empty">Aucune option combo pour aujourd\'hui pour l\'instant.</div>'
+      : todayCombos.map(c => `<div class="combo-item"><span class="combo-fire">🔥</span>${c.text}</div>`).join('');
+  }
+
+  const adminEl = document.getElementById('admin-combo-list');
+  if (adminEl) {
+    adminEl.innerHTML = todayCombos.length === 0
+      ? '<div class="empty" style="padding:0.5rem 0;">Aucune option ajoutée aujourd\'hui.</div>'
+      : todayCombos.map(c => `
+        <div class="admin-match-row">
+          <div class="match-info">${c.text}</div>
+          <button class="delete-btn" data-combo="${c.id}">Supprimer</button>
+        </div>`).join('');
+    adminEl.querySelectorAll('[data-combo]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        db.collection('combos').doc(btn.getAttribute('data-combo')).delete().catch(console.error);
+      });
+    });
+  }
 }, console.error);
 
 /* ---------- Firestore live listener ---------- */
