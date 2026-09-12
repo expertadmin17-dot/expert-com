@@ -355,6 +355,8 @@
   <div id="admin-view" class="view">
     <div class="back-link" data-back>← Retour à l'accueil</div>
     <div class="stats-grid" id="admin-stats"></div>
+    <p class="section-label" style="margin-top:0;">Fréquentation</p>
+    <div class="stats-grid" id="visit-stats"></div>
 
     <div class="admin-card">
       <h2>Telegram</h2>
@@ -743,6 +745,47 @@ function renderStats(docs) {
     <div class="stat-box"><div class="num">${validated}</div><div class="lbl">Validés</div></div>
   `;
 }
+
+/* ---------- Suivi de fréquentation (visiteurs & durée) ---------- */
+let visitDocRef = null;
+const visitStart = Date.now();
+
+db.collection('visits').add({
+  startedAt: firebase.firestore.FieldValue.serverTimestamp(),
+  durationSeconds: 0
+}).then(ref => { visitDocRef = ref; }).catch(console.error);
+
+function updateVisitDuration() {
+  if (!visitDocRef) return;
+  const seconds = Math.round((Date.now() - visitStart) / 1000);
+  visitDocRef.update({ durationSeconds: seconds }).catch(() => {});
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') updateVisitDuration();
+});
+setInterval(updateVisitDuration, 20000);
+
+function formatDuration(totalSeconds) {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return m > 0 ? `${m} min ${s}s` : `${s}s`;
+}
+
+db.collection('visits').onSnapshot(snapshot => {
+  const el = document.getElementById('visit-stats');
+  if (!el) return;
+  const docs = snapshot.docs.map(d => d.data());
+  const totalVisits = docs.length;
+  const todayKey = dateKeyOf(new Date());
+  const visitsToday = docs.filter(v => (v.startedAt && v.startedAt.toDate) && dateKeyOf(v.startedAt.toDate()) === todayKey).length;
+  const durations = docs.map(v => v.durationSeconds || 0).filter(s => s > 0);
+  const avgSeconds = durations.length ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : 0;
+  el.innerHTML = `
+    <div class="stat-box"><div class="num">${totalVisits}</div><div class="lbl">Visites (total)</div></div>
+    <div class="stat-box"><div class="num">${visitsToday}</div><div class="lbl">Visites aujourd'hui</div></div>
+    <div class="stat-box" style="grid-column: span 2;"><div class="num">${formatDuration(avgSeconds)}</div><div class="lbl">Durée moyenne passée sur le site</div></div>
+  `;
+}, console.error);
 
 /* ---------- Firestore live listener ---------- */
 document.getElementById('today-date-label').textContent = formatDateLong(new Date());
